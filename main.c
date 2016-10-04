@@ -9,8 +9,12 @@
 #define UPTO(count) \
   for(int i = 0; i < (count); i++)
 
-#define LASSERT(args, cond, err) \
-  if (!(cond)) { lval_free(args); return lval_err(err);  }
+#define LASSERT(args, cond, fmt, ...) \
+  if (!(cond)) { \
+    lval* err = lval_err(fmt, ##__VA_ARGS__); \
+    lval_free(args); \
+    return err; \
+  }
 
 /* Types */
 struct lval;
@@ -49,6 +53,20 @@ void lval_free(lval* v);
 void lval_print(lval* v);
 lval* lval_eval(lenv* e, lval* v);
 
+/* Helpers */
+
+char* ltype2name(int t) {
+  switch(t) {
+    case LVAL_FUN: return "Function";
+    case LVAL_NUM: return "Number";
+    case LVAL_ERR: return "Error";
+    case LVAL_SYM: return "Symbol";
+    case LVAL_SEXPR: return "S-Expression";
+    case LVAL_QEXPR: return "Q-Expression";
+    default: return "Unknown";
+  }
+}
+
 /* Lisp value constructors */
 
 lval* lval_new(int type) {
@@ -63,10 +81,14 @@ lval* lval_num(long x) {
   return v;
 }
 
-lval* lval_err(char* m) {
+lval* lval_err(char* fmt, ...) {
   lval* v = lval_new(LVAL_ERR);
-  v->err = malloc(strlen(m)+1);
-  strcpy(v->err, m);
+  va_list va;
+  va_start(va, fmt);
+  v->err = malloc(512);
+  vsnprintf(v->err, 511, fmt, va);
+  v->err = realloc(v->err, strlen(v->err)+1);
+  va_end(va);
   return v;
 }
 
@@ -204,7 +226,7 @@ lval* lenv_get(lenv* e, lval* k) {
       return lval_copy(e->vals[i]);
     }
   }
-  return lval_err("Unknown symbol!");
+  return lval_err("Unknown symbol '%s' !", k->sym);
 }
 
 void lenv_put(lenv* e, lval* k, lval* v) {
@@ -324,8 +346,8 @@ lval* builtin_def(lenv* e, lval* a) {
 }
 
 lval* builtin_head(lenv* e, lval* a) {
-  LASSERT(a, a->count==1, "Function 'head' passed too many arguments!");
-  LASSERT(a, a->cell[0]->type==LVAL_QEXPR, "Function 'head' passed incorrect types!");
+  LASSERT(a, a->count==1, "Function 'head' wrong numberof arguments! Got %i, expected 1.", a->count);
+  LASSERT(a, a->cell[0]->type==LVAL_QEXPR, "Function 'head' passed incorrect type! Got %s, expected %s.", ltype2name(a->cell[0]->type), ltype2name(LVAL_QEXPR));
   LASSERT(a, a->cell[0]->count!=0, "Function 'head' passed {}!");
 
   lval* v = lval_take(a, 0);
