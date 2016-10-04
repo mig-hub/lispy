@@ -304,6 +304,25 @@ void lval_println(lval* v) {
 
 /* Builtins */
 
+lval* builtin_def(lenv* e, lval* a) {
+  LASSERT(a, a->cell[0]->type == LVAL_QEXPR, "Function 'def' passed incorrect type!");
+
+  lval* syms = a->cell[0];
+
+  UPTO(syms->count) {
+    LASSERT(a, syms->cell[i]->type == LVAL_SYM, "Function 'def' cannot define non-symbol!");
+  }
+
+  LASSERT(a, syms->count == a->count-1, "Function 'def' needs a value for each symbol!");
+
+  UPTO(syms->count) {
+    lenv_put(e, syms->cell[i], a->cell[i+1]);
+  }
+
+  lval_free(a);
+  return lval_sexpr();
+}
+
 lval* builtin_head(lenv* e, lval* a) {
   LASSERT(a, a->count==1, "Function 'head' passed too many arguments!");
   LASSERT(a, a->cell[0]->type==LVAL_QEXPR, "Function 'head' passed incorrect types!");
@@ -446,6 +465,7 @@ lval* lval_eval(lenv* e, lval* v) {
 /* Add all builtins to env */
 
 void lenv_add_builtins(lenv* e) {
+  lenv_add_builtin(e, "def", builtin_def);
   lenv_add_builtin(e, "list", builtin_list);
   lenv_add_builtin(e, "head", builtin_head);
   lenv_add_builtin(e, "tail", builtin_tail);
